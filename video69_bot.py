@@ -235,7 +235,7 @@ def get_random_video(user_id):
     
     # Configuration: message ID range in your channel
     MIN_MESSAGE_ID = 1
-    MAX_MESSAGE_ID = 3000  # Adjust based on your channel size
+    MAX_MESSAGE_ID = 7089  # Adjust based on your channel size
     
     # Generate a list of all possible message IDs
     all_message_ids = list(range(MIN_MESSAGE_ID, MAX_MESSAGE_ID + 1))
@@ -1024,29 +1024,29 @@ def main():
     print("🤖 Starting Videos Bot System...")
     print("=" * 50)
     
-    # Start the admin bot in a separate process
+    # Start the admin bot in a separate process (Windows only)
+    # On Linux, use start_bots.sh script instead
     admin_bot_process = None
-    try:
-        print("📱 [1/2] Starting Admin Support Bot...")
-        admin_bot_path = os.path.join(os.path.dirname(__file__), "admin_bot.py")
-        
-        # Start admin bot in a new console window (Windows)
-        if sys.platform == "win32":
+    if sys.platform == "win32":
+        try:
+            print("📱 [1/2] Starting Admin Support Bot...")
+            admin_bot_path = os.path.join(os.path.dirname(__file__), "admin_bot.py")
+            
             admin_bot_process = subprocess.Popen(
                 [sys.executable, admin_bot_path],
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
-        else:
-            # For Linux/Mac
-            admin_bot_process = subprocess.Popen([sys.executable, admin_bot_path])
-        
-        print("✅ Admin Bot started successfully!")
-        print(f"   Bot: @videos69Admin_Bot")
-        print(f"   Admin: ")
-        print()
-    except Exception as e:
-        print(f"⚠️ Warning: Could not start admin bot: {e}")
-        print("   You can start it manually: python admin_bot.py")
+            
+            print("✅ Admin Bot started successfully!")
+            print(f"   Bot: @videos69Admin_Bot")
+            print(f"   Admin: ")
+            print()
+        except Exception as e:
+            print(f"⚠️ Warning: Could not start admin bot: {e}")
+            print("   You can start it manually: python admin_bot.py")
+            print()
+    else:
+        print("ℹ️ On Linux, use './start_bots.sh' to start both bots")
         print()
     
     print("🎬 [2/2] Starting Main Videos Bot...")

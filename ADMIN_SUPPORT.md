@@ -24,7 +24,7 @@ Admin → Replies to forwarded message → Sent to User
 - **Bot:** @videos69Admin_Bot
 - **Token:** 8599538827:AAEByXuZDRmLP-8vP3TBaSajr7OGGV06bYI
 - **Purpose:** User support messages
-- **Admin:** @Deep12048 (ID: 7616678030)
+- **Admin:**  (ID: 7708376300)
 
 ## Running Both Bots
 
@@ -91,7 +91,7 @@ If you're facing any issues or have questions, you can contact our admin!
 📞 Contact Admin Bot:
 Click the button below to message our admin support bot.
 
-👨‍💼 Admin: @Deep12048
+👨‍💼 Admin: 
 
 Your message will be forwarded to the admin, and they will reply to you directly!
 
@@ -113,7 +113,7 @@ Admin Bot to User:
 Your message has been forwarded to our admin.
 You will receive a reply here soon. Please wait! 🙏
 
-👨‍💼 Admin: @Deep12048
+👨‍💼 Admin: 
 ```
 
 ### Step 5: Admin Receives Message
@@ -191,7 +191,7 @@ d:\Videos69 bot\
 ### Admin Bot
 ```
 🤖 Starting Admin Support Bot...
-👨‍💼 Admin: @Deep12048 (ID: 7616678030)
+👨‍💼 Admin:  (ID: 7708376300)
 ✅ Admin Support Bot is running!
 📱 Bot: @videos69Admin_Bot
 💬 Users can send messages, admin can reply!
@@ -251,7 +251,7 @@ d:\Videos69 bot\
 1. **Main Bot** - Videos, /help directs to admin bot
 2. **Admin Bot** - Support messages, forwards to admin
 
-**Admin:** @Deep12048 (ID: 7616678030)
+**Admin:**  (ID: 7708376300)
 
 **To Start:**
 ```bash

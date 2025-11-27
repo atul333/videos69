@@ -19,7 +19,7 @@ echo ========================================
 echo.
 echo Main Bot: @Videos1_69_bot
 echo Admin Bot: @videos69Admin_Bot
-echo Admin: @Deep12048
+echo Admin: 
 echo.
 echo Press any key to exit...
 pause >nul
