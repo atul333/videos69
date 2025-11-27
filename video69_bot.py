@@ -501,7 +501,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 chat_id=chat_id,
                 text="🔒 **Channel Membership Required!**\n\n"
                      "You must join our channel to use this bot.\n\n"
-                     "📢 **Steps:**\n"
+                     "📢 **Steps**:\n"
                      "1. Click 'Join Channel' button below\n"
                      "2. Join the channel\n"
                      "3. Click 'Refresh' button to verify\n\n"
@@ -525,7 +525,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                         chat_id=chat_id,
                         text="⏰ **Premium Access Expired!**\n\n"
                              "Your premium access has ended.\n\n"
-                             "**Options:**\n"
+                             "**Options**:\n"
                              "• 📺 Watch an ad to get 12 more hours of premium\n"
                              "• ⏰ Wait until 12:00 AM IST for daily limit to renew\n\n"
                              "Choose an option below:",
@@ -542,7 +542,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 chat_id=chat_id,
                 text="❌ **Daily Limit Reached!**\n\n"
                      "You've exceeded the 10 video limit for today.\n\n"
-                     "**Options:**\n"
+                     "**Options**:\n"
                      "• 📺 Watch an ad to get 12 hours of unlimited access\n"
                      "• ⏰ Wait until 12:00 AM IST for your daily limit to renew\n\n"
                      "Choose an option below:",
@@ -656,7 +656,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 Welcome {first_name}!\n\n"
             f"🔒 To use this bot, you must join our channel first.\n\n"
-            f"📢 **Steps:**\n"
+            f"📢 **Steps**:\n"
             f"1. Click 'Join Channel' button below\n"
             f"2. Join the channel\n"
             f"3. Click 'Refresh' button to verify\n\n"
@@ -938,7 +938,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.edit_text(
                     f"❌ **Not Joined Yet**\n\n"
                     f"You haven't joined the channel yet.\n\n"
-                    f"📢 **Please:**\n"
+                    f"📢 **Please**:\n"
                     f"1. Click 'Join Channel' button\n"
                     f"2. Join the channel\n"
                     f"3. Click 'Refresh' again\n\n"
@@ -975,12 +975,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text="📺 **Watch Ad to Get Premium Access**\n\n"
-                     "🎯 **Instructions:**\n"
+                     "🎯 **Instructions**:\n"
                      "1. Click the 'Click Here to Watch Ad' button below\n"
                      "2. Complete the ad verification process\n"
                      "3. You'll be automatically redirected back to the bot\n"
                      "4. **Premium will activate automatically!**\n\n"
-                     "⚠️ **iOS Users:** Copy the link and open it in Chrome browser\n\n"
+                     "⚠️ **iOS Users**: Copy the link and open it in Chrome browser\n\n"
                      "💎 You'll get **12 hours of unlimited video access**!",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
@@ -996,15 +996,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Show instructions on how to open the link
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text="❓ **How to Open the Ad Link:**\n\n"
-                 "**For iOS Users:**\n"
+            text="❓ **How to Open the Ad Link**:\n\n"
+                 "**For iOS Users**:\n"
                  "1. Click on the 'Click Here to Watch Ad' button\n"
                  "2. Copy the link that appears\n"
                  "3. Open Chrome browser on your device\n"
                  "4. Paste and open the link\n"
                  "5. Complete the ad viewing process\n"
                  "6. You'll be redirected back automatically!\n\n"
-                 "**For Android Users:**\n"
+                 "**For Android Users**:\n"
                  "1. Simply click the 'Click Here to Watch Ad' button\n"
                  "2. Complete the ad verification\n"
                  "3. You'll be redirected back automatically!\n\n"
