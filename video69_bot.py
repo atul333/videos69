@@ -43,8 +43,8 @@ used_tokens = set()
 # Track all users who have started the bot (for broadcasting)
 all_users = set()
 
-# Daily video limit for free users
-DAILY_VIDEO_LIMIT = 10
+# Hourly video limit for free users (resets every hour)
+HOURLY_VIDEO_LIMIT = 10
 # Premium access duration after watching ad (12 hours)
 PREMIUM_DURATION_HOURS = 12
 
@@ -265,10 +265,13 @@ def mark_video_as_seen(user_id, video_id):
 def init_user_state(user_id):
     """Initialize user state with default values"""
     if user_id not in user_states:
+        now = datetime.now(timezone.utc)
+        # Set last_reset to the start of the current hour
+        last_reset = now.replace(minute=0, second=0, microsecond=0)
         user_states[user_id] = {
             'seen_videos': [],
-            'daily_count': 0,
-            'last_reset': datetime.now(timezone.utc),
+            'hourly_count': 0,
+            'last_reset': last_reset,
             'premium_until': None,
             'ad_link': None,  # Store the unique ad link for this user
             'ad_token': None  # Store the verification token
@@ -286,35 +289,40 @@ def is_premium_user(user_id):
     return False
 
 
-def check_and_reset_daily_limit(user_id):
-    """Check if daily limit needs to be reset (every 24 hours)"""
+def check_and_reset_hourly_limit(user_id):
+    """Check if hourly limit needs to be reset (at the start of each hour)"""
     if user_id not in user_states:
         init_user_state(user_id)
     
     user_state = user_states[user_id]
     now = datetime.now(timezone.utc)
     
-    # Reset if more than 24 hours have passed
-    if now - user_state['last_reset'] >= timedelta(hours=24):
-        user_state['daily_count'] = 0
-        user_state['last_reset'] = now
+    # Get the start of the current hour
+    current_hour_start = now.replace(minute=0, second=0, microsecond=0)
+    
+    # Reset if we've moved to a new hour
+    if current_hour_start > user_state['last_reset']:
+        user_state['hourly_count'] = 0
+        user_state['last_reset'] = current_hour_start
+        return True  # Indicate that reset occurred
+    return False  # No reset occurred
 
 
 def can_watch_video(user_id):
-    """Check if user can watch a video (premium or within daily limit)"""
+    """Check if user can watch a video (premium or within hourly limit)"""
     if is_premium_user(user_id):
         return True
     
-    check_and_reset_daily_limit(user_id)
-    return user_states[user_id]['daily_count'] < DAILY_VIDEO_LIMIT
+    check_and_reset_hourly_limit(user_id)
+    return user_states[user_id]['hourly_count'] < HOURLY_VIDEO_LIMIT
 
 
 def increment_video_count(user_id):
-    """Increment user's daily video count"""
+    """Increment user's hourly video count"""
     if user_id not in user_states:
         init_user_state(user_id)
     
-    user_states[user_id]['daily_count'] += 1
+    user_states[user_id]['hourly_count'] += 1
 
 
 def utc_to_ist(utc_time):
@@ -412,24 +420,27 @@ async def delete_messages(context: ContextTypes.DEFAULT_TYPE):
     # No notification message - keep the chat clean!
 
 
-async def broadcast_new_videos(context: ContextTypes.DEFAULT_TYPE):
-    """Broadcast message to all users about new videos - sent daily at 12:00 AM IST"""
+async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
+    """Broadcast message to all users about hourly limit reset - sent every hour"""
     
-    # Get current date in IST
+    # Get current time in IST
     from datetime import datetime, timedelta, timezone
     ist_offset = timedelta(hours=5, minutes=30)
     current_time_ist = datetime.now(timezone.utc) + ist_offset
-    date_str = current_time_ist.strftime('%B %d, %Y')  # e.g., "November 27, 2025"
+    time_str = current_time_ist.strftime('%I:00 %p')  # e.g., "01:00 PM"
+    date_str = current_time_ist.strftime('%B %d, %Y')  # e.g., "November 30, 2025"
     
     # Create "Watch Now" button
     keyboard = [[InlineKeyboardButton("🎬 Watch Now", callback_data='next_video')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message_text = (
-        f"🎬 **New Videos Added!** 🎬\n\n"
-        f"📅 Fresh videos for **{date_str}**\n\n"
-        f"✨ Your daily limit has been renewed!\n"
+        f"🎬 **Hourly Limit Reset!** 🎬\n\n"
+        f"⏰ Time: **{time_str} IST**\n"
+        f"📅 Date: **{date_str}**\n\n"
+        f"✨ Your hourly limit has been renewed!\n"
         f"🎥 You can now watch **10 free videos**\n\n"
+        f"💎 No ads required - just start watching!\n\n"
         f"Click below to start watching!\n\n"
         f"Enjoy! 🍿"
     )
@@ -471,7 +482,8 @@ async def broadcast_new_videos(context: ContextTypes.DEFAULT_TYPE):
     if blocked_users:
         batch_remove_users(blocked_users)
     
-    print(f"📢 Daily broadcast complete! Sent to {successful} users, {failed} failed")
+    print(f"📢 Hourly broadcast complete! Sent to {successful} users, {failed} failed")
+    print(f"⏰ Broadcast time: {time_str} IST")
     print(f"📅 Broadcast date: {date_str}")
     print(f"👥 Total users in database: {get_user_count()}")
 
@@ -517,35 +529,48 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             if user_id in user_states and user_states[user_id].get('premium_until'):
                 premium_until = user_states[user_id]['premium_until']
                 if datetime.now(timezone.utc) >= premium_until:
-                    # Premium has expired
+                    # Premium has expired - calculate next hourly reset
+                    now = datetime.now(timezone.utc)
+                    next_reset = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+                    next_reset_ist = utc_to_ist(next_reset)
+                    time_until_reset = next_reset - now
+                    minutes_until_reset = int(time_until_reset.total_seconds() / 60)
+                    
                     keyboard = [[InlineKeyboardButton("📺 Watch Ad", callback_data='watch_ad')]]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await context.bot.send_message(
                         chat_id=chat_id,
-                        text="⏰ **Premium Access Expired!**\n\n"
-                             "Your premium access has ended.\n\n"
-                             "**Options**:\n"
-                             "• 📺 Watch an ad to get 12 more hours of premium\n"
-                             "• ⏰ Wait until 12:00 AM IST for daily limit to renew\n\n"
-                             "Choose an option below:",
+                        text=f"⏰ **Premium Access Expired!**\n\n"
+                             f"Your premium access has ended.\n\n"
+                             f"**Options**:\n"
+                             f"• 📺 Watch an ad to get 12 more hours of premium\n"
+                             f"• ⏰ Wait {minutes_until_reset} minutes for your hourly limit to reset at {next_reset_ist.strftime('%I:%M %p')} IST\n\n"
+                             f"Choose an option below:",
                         parse_mode='Markdown',
                         reply_markup=reply_markup
                     )
                     return
             
-            # Regular daily limit reached (no premium or never had premium)
+            # Regular hourly limit reached (no premium or never had premium)
+            # Calculate next reset time
+            now = datetime.now(timezone.utc)
+            next_reset = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+            next_reset_ist = utc_to_ist(next_reset)
+            time_until_reset = next_reset - now
+            minutes_until_reset = int(time_until_reset.total_seconds() / 60)
+            
             keyboard = [[InlineKeyboardButton("📺 Watch Ad", callback_data='watch_ad')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="❌ **Daily Limit Reached!**\n\n"
-                     "You've exceeded the 10 video limit for today.\n\n"
-                     "**Options**:\n"
-                     "• 📺 Watch an ad to get 12 hours of unlimited access\n"
-                     "• ⏰ Wait until 12:00 AM IST for your daily limit to renew\n\n"
-                     "Choose an option below:",
+                text=f"❌ **Hourly Limit Reached!**\n\n"
+                     f"You've watched all 10 videos for this hour.\n\n"
+                     f"**Options**:\n"
+                     f"• 📺 Watch an ad to get 12 hours of unlimited access\n"
+                     f"• ⏰ Wait {minutes_until_reset} minutes for your hourly limit to reset at {next_reset_ist.strftime('%I:%M %p')} IST\n\n"
+                     f"Choose an option below:",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
@@ -771,7 +796,8 @@ Hello {first_name}! 👋
 
 I'm here to share amazing videos with you from our collection.
 
-🎥 You can watch **10 videos per day** for free!
+🎥 You can watch **10 videos per hour** for free!
+⏰ Your limit resets every hour (1:00 PM, 2:00 PM, etc.)
 
 💎 Want unlimited access? Watch an ad to get **12 hours of premium**!
 
@@ -916,7 +942,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"✅ **Verified!**\n\n"
                     f"Welcome {first_name}! 👋\n\n"
                     f"You've successfully joined the channel!\n\n"
-                    f"🎥 You can watch **10 videos per day** for free!\n\n"
+                    f"🎥 You can watch **10 videos per hour** for free!\n"
+                    f"⏰ Your limit resets every hour!\n\n"
                     f"💎 Want unlimited access? Watch an ad to get **12 hours of premium**!\n\n"
                     f"Click below to start watching! 🍿",
                     parse_mode='Markdown',
@@ -1075,21 +1102,24 @@ def main():
         
         # Channel post handler disabled - using random message IDs
         
-        # Schedule daily broadcast at 12:00 AM IST (when daily limit resets)
+        # Schedule hourly broadcast at the start of each hour (when hourly limit resets)
         from datetime import time
         import pytz
         
         # IST timezone
         ist_tz = pytz.timezone('Asia/Kolkata')
         
-        # Schedule for 12:00 AM IST
+        # Schedule for every hour at :00 minutes
         job_queue = application.job_queue
-        job_queue.run_daily(
-            broadcast_new_videos,
-            time=time(hour=0, minute=0, second=0, tzinfo=ist_tz),  # 12:00 AM IST
-            name='daily_broadcast'
+        
+        # Run every hour (3600 seconds)
+        job_queue.run_repeating(
+            broadcast_hourly_reset,
+            interval=3600,  # Every hour in seconds
+            first=60,  # Start after 60 seconds to allow bot to initialize
+            name='hourly_broadcast'
         )
-        print("📢 Daily broadcast scheduler enabled: Sending message every day at 12:00 AM IST")
+        print("📢 Hourly broadcast scheduler enabled: Sending message every hour at the top of the hour")
         print()
         
         # Start the bot
