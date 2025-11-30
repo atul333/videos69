@@ -16,7 +16,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME')
-CHANNEL_ID = -1003359300989  # Private channel ID
+CHANNEL_ID = -1003389539131  # Private channel ID
 
 # Use channel ID for private channels, username for public channels
 CHANNEL_IDENTIFIER = CHANNEL_ID if CHANNEL_ID else f"@{CHANNEL_USERNAME}"
