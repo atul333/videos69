@@ -1109,40 +1109,48 @@ def main():
         
         # Channel post handler disabled - using random message IDs
         
-        # Schedule hourly broadcast at the start of each hour (when hourly limit resets)
+        # Schedule hourly broadcast at :30 minutes of each hour (1:30 PM, 2:30 PM, etc.)
         from datetime import time
         import pytz
         
         # IST timezone
         ist_tz = pytz.timezone('Asia/Kolkata')
         
-        # Calculate when to run the first broadcast (at the next hour mark)
+        # Calculate when to run the first broadcast (at the next :30 mark)
         now_utc = datetime.now(timezone.utc)
         now_ist = now_utc + timedelta(hours=5, minutes=30)
         
-        # Calculate next hour (e.g., if it's 12:37, next hour is 13:00)
-        next_hour_ist = (now_ist + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        next_hour_utc = next_hour_ist - timedelta(hours=5, minutes=30)
+        # Calculate next :30 minute mark
+        # If current time is before :30 of this hour, next broadcast is at :30 of this hour
+        # If current time is after :30 of this hour, next broadcast is at :30 of next hour
+        if now_ist.minute < 30:
+            # Next broadcast is at :30 of current hour
+            next_broadcast_ist = now_ist.replace(minute=30, second=0, microsecond=0)
+        else:
+            # Next broadcast is at :30 of next hour
+            next_broadcast_ist = (now_ist + timedelta(hours=1)).replace(minute=30, second=0, microsecond=0)
         
-        # Calculate seconds until next hour
-        seconds_until_next_hour = (next_hour_utc - now_utc).total_seconds()
+        next_broadcast_utc = next_broadcast_ist - timedelta(hours=5, minutes=30)
         
-        # Schedule for every hour at :00 minutes
+        # Calculate seconds until next :30 mark
+        seconds_until_next_broadcast = (next_broadcast_utc - now_utc).total_seconds()
+        
+        # Schedule for every hour at :30 minutes
         job_queue = application.job_queue
         
-        # Run at the top of every hour
+        # Run at :30 of every hour
         job_queue.run_repeating(
             broadcast_hourly_reset,
             interval=3600,  # Every hour in seconds
-            first=seconds_until_next_hour,  # Wait until next hour mark
+            first=seconds_until_next_broadcast,  # Wait until next :30 mark
             name='hourly_broadcast'
         )
         
         print(f"📢 Hourly broadcast scheduler enabled!")
         print(f"   Current time: {now_ist.strftime('%I:%M %p')} IST")
-        print(f"   Next broadcast: {next_hour_ist.strftime('%I:%M %p')} IST")
-        print(f"   Waiting: {int(seconds_until_next_hour / 60)} minutes {int(seconds_until_next_hour % 60)} seconds")
-        print(f"   Then every hour at :00 minutes (1:00 PM, 2:00 PM, 3:00 PM, etc.)")
+        print(f"   Next broadcast: {next_broadcast_ist.strftime('%I:%M %p')} IST")
+        print(f"   Waiting: {int(seconds_until_next_broadcast / 60)} minutes {int(seconds_until_next_broadcast % 60)} seconds")
+        print(f"   Then every hour at :30 minutes (1:30 PM, 2:30 PM, 3:30 PM, etc.)")
         print()
         
         # Start the bot
