@@ -423,12 +423,19 @@ async def delete_messages(context: ContextTypes.DEFAULT_TYPE):
 async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
     """Broadcast message to all users about hourly limit reset - sent every hour"""
     
+    print("\n" + "=" * 60)
+    print("🔔 HOURLY BROADCAST TRIGGERED!")
+    print("=" * 60)
+    
     # Get current time in IST
     from datetime import datetime, timedelta, timezone
     ist_offset = timedelta(hours=5, minutes=30)
     current_time_ist = datetime.now(timezone.utc) + ist_offset
     time_str = current_time_ist.strftime('%I:00 %p')  # e.g., "01:00 PM"
     date_str = current_time_ist.strftime('%B %d, %Y')  # e.g., "November 30, 2025"
+    
+    print(f"⏰ Broadcasting at: {time_str} IST")
+    print(f"📅 Date: {date_str}")
     
     # Create "Watch Now" button
     keyboard = [[InlineKeyboardButton("🎬 Watch Now", callback_data='next_video')]]
@@ -1109,17 +1116,33 @@ def main():
         # IST timezone
         ist_tz = pytz.timezone('Asia/Kolkata')
         
+        # Calculate when to run the first broadcast (at the next hour mark)
+        now_utc = datetime.now(timezone.utc)
+        now_ist = now_utc + timedelta(hours=5, minutes=30)
+        
+        # Calculate next hour (e.g., if it's 12:37, next hour is 13:00)
+        next_hour_ist = (now_ist + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        next_hour_utc = next_hour_ist - timedelta(hours=5, minutes=30)
+        
+        # Calculate seconds until next hour
+        seconds_until_next_hour = (next_hour_utc - now_utc).total_seconds()
+        
         # Schedule for every hour at :00 minutes
         job_queue = application.job_queue
         
-        # Run every hour (3600 seconds)
+        # Run at the top of every hour
         job_queue.run_repeating(
             broadcast_hourly_reset,
             interval=3600,  # Every hour in seconds
-            first=60,  # Start after 60 seconds to allow bot to initialize
+            first=seconds_until_next_hour,  # Wait until next hour mark
             name='hourly_broadcast'
         )
-        print("📢 Hourly broadcast scheduler enabled: Sending message every hour at the top of the hour")
+        
+        print(f"📢 Hourly broadcast scheduler enabled!")
+        print(f"   Current time: {now_ist.strftime('%I:%M %p')} IST")
+        print(f"   Next broadcast: {next_hour_ist.strftime('%I:%M %p')} IST")
+        print(f"   Waiting: {int(seconds_until_next_hour / 60)} minutes {int(seconds_until_next_hour % 60)} seconds")
+        print(f"   Then every hour at :00 minutes (1:00 PM, 2:00 PM, 3:00 PM, etc.)")
         print()
         
         # Start the bot
