@@ -235,7 +235,7 @@ def get_random_video(user_id):
     
     # Configuration: message ID range in your channel
     MIN_MESSAGE_ID = 1
-    MAX_MESSAGE_ID = 7089  # Adjust based on your channel size
+    MAX_MESSAGE_ID = 20000  # Adjust based on your channel size
     
     # Generate a list of all possible message IDs
     all_message_ids = list(range(MIN_MESSAGE_ID, MAX_MESSAGE_ID + 1))
