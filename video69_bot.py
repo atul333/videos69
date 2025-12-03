@@ -924,13 +924,30 @@ Your message will be forwarded to the admin, and they will reply to you directly
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks"""
     query = update.callback_query
+    user_id = query.from_user.id
+    user_name = query.from_user.first_name or "Unknown"
+    button_action = query.data
     
-    # Try to answer the query, but ignore timeout errors
+    # Track if this is an old/expired callback query
+    is_old_query = False
+    
+    # Try to answer the query, but silently ignore timeout/expired errors
     try:
         await query.answer()
     except Exception as e:
-        # Ignore "Query is too old" errors
-        print(f"⚠️ Could not answer callback query: {e}")
+        # Silently ignore "Query is too old" and timeout errors
+        # These are expected when users click old broadcast buttons
+        if "too old" in str(e).lower() or "timeout" in str(e).lower() or "query id is invalid" in str(e).lower():
+            is_old_query = True
+            print(f"🕐 Old button clicked by {user_name} (ID: {user_id}) - Action: '{button_action}'")
+            print(f"   ✅ Processing anyway (callback query expired but action will execute)")
+        else:
+            # Log unexpected errors
+            print(f"⚠️ Unexpected callback query error: {e}")
+    
+    # Log successful fresh button clicks
+    if not is_old_query:
+        print(f"🔘 Button clicked by {user_name} (ID: {user_id}) - Action: '{button_action}'")
     
     if query.data == 'check_membership':
         # User clicked refresh button - check if they joined the channel
