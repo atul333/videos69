@@ -657,6 +657,10 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                     # Store video info for download callback: format is "download_channelMsgId"
                     download_callback = f"download_{message_id}"
                     keyboard.append([InlineKeyboardButton(f"📥 Download ({remaining} left)", callback_data=download_callback)])
+                else:
+                    # Download limit reached - add Watch Ad button for free users
+                    if not is_premium:
+                        keyboard.append([InlineKeyboardButton("💎 Watch Ad for Premium", callback_data='watch_ad')])
                 
                 # Always add Next button
                 keyboard.append([InlineKeyboardButton("▶️ Next", callback_data='next_video')])
@@ -682,11 +686,22 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                             f"⚠️ This video will be deleted after 20 minutes."
                         )
                 else:
-                    warning_text = (
-                        f"👆 Enjoy the video!\n\n"
-                        f"🔒 Download limit reached ({download_limit} videos).\n"
-                        f"⚠️ This video will be deleted after 20 minutes."
-                    )
+                    # Different messages for premium vs free users when limit reached
+                    if is_premium:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"🔒 Download limit reached ({download_limit} videos).\n"
+                            f"⚠️ This video will be deleted after 20 minutes."
+                        )
+                    else:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"🔒 Download limit reached ({download_limit} videos).\n\n"
+                            f"💎 **Want 20 downloads per hour?**\n"
+                            f"Watch an ad for Premium Access:\n"
+                            f"✅ Unlimited videos + 20 downloads!\n\n"
+                            f"⚠️ This video will be deleted after 20 minutes."
+                        )
                 
                 warning_msg = await context.bot.send_message(
                     chat_id=chat_id,
@@ -1161,12 +1176,33 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Check if user still has downloads remaining
             if downloaded_count >= download_limit:
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text="❌ **Download Limit Reached!**\n\n"
-                         f"You've already downloaded {download_limit} videos.\n"
-                         "You cannot download more videos this hour."
-                )
+                # Show different messages for premium vs free users
+                if is_premium:
+                    # Premium user reached their 20 download limit
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="❌ **Download Limit Reached!**\n\n"
+                             f"You've already downloaded {download_limit} videos this hour.\n"
+                             "Your download limit will reset at the next hour."
+                    )
+                else:
+                    # Free user reached their 2 download limit - show premium promotion
+                    keyboard = [[InlineKeyboardButton("📺 Watch Ad for Premium", callback_data='watch_ad')]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="❌ **Download Limit Reached!**\n\n"
+                             f"You've already downloaded {download_limit} videos this hour.\n\n"
+                             "💎 **Want More Downloads?**\n"
+                             "Watch an ad to get Premium Access:\n\n"
+                             "✅ **Unlimited** video watching\n"
+                             "✅ **20 downloads** per hour (10x more!)\n"
+                             "✅ **12 hours** of premium access\n\n"
+                             "Click below to watch an ad and unlock premium! 🚀",
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
                 return
             
             # Send unprotected copy of the video
