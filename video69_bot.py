@@ -11,6 +11,16 @@ from telegram.request import HTTPXRequest
 import aiohttp
 import hashlib
 
+# Import persistent user state storage
+from user_state_storage import (
+    load_user_states, 
+    save_user_states, 
+    init_user_state_data,
+    cleanup_expired_data,
+    get_premium_users_count,
+    get_stats
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -35,11 +45,14 @@ request = HTTPXRequest(
 
 # Store video message IDs
 video_messages = []
-# Store user states to track which videos they've seen, daily limits, and premium access
-# Structure: {user_id: {'seen_videos': [], 'daily_count': 0, 'last_reset': datetime, 'premium_until': datetime}}
-user_states = {}
-# Track used tokens to prevent link reuse
+
+# Load user states from persistent storage (replaces in-memory dictionary)
+# Structure: {user_id: {'seen_videos': [], 'hourly_count': 0, 'last_reset': datetime, 'premium_until': datetime}}
+user_states = load_user_states()
+
+# Track used tokens to prevent link reuse (this can be in-memory as tokens are single-use)
 used_tokens = set()
+
 # Track all users who have started the bot (for broadcasting)
 all_users = set()
 
@@ -260,22 +273,17 @@ def mark_video_as_seen(user_id, video_id):
     
     if video_id not in user_states[user_id]['seen_videos']:
         user_states[user_id]['seen_videos'].append(video_id)
+        # Save to persistent storage
+        save_user_states(user_states)
 
 
 def init_user_state(user_id):
     """Initialize user state with default values"""
+    global user_states
     if user_id not in user_states:
-        now = datetime.now(timezone.utc)
-        # Set last_reset to the start of the current hour
-        last_reset = now.replace(minute=0, second=0, microsecond=0)
-        user_states[user_id] = {
-            'seen_videos': [],
-            'hourly_count': 0,
-            'last_reset': last_reset,
-            'premium_until': None,
-            'ad_link': None,  # Store the unique ad link for this user
-            'ad_token': None  # Store the verification token
-        }
+        # Use the persistent storage module to initialize
+        init_user_state_data(user_id, user_states)
+        print(f"✨ Initialized new user state for user {user_id}")
 
 
 def is_premium_user(user_id):
@@ -304,6 +312,8 @@ def check_and_reset_hourly_limit(user_id):
     if current_hour_start > user_state['last_reset']:
         user_state['hourly_count'] = 0
         user_state['last_reset'] = current_hour_start
+        # Save to persistent storage
+        save_user_states(user_states)
         return True  # Indicate that reset occurred
     return False  # No reset occurred
 
@@ -323,6 +333,8 @@ def increment_video_count(user_id):
         init_user_state(user_id)
     
     user_states[user_id]['hourly_count'] += 1
+    # Save to persistent storage
+    save_user_states(user_states)
 
 
 def utc_to_ist(utc_time):
@@ -337,6 +349,9 @@ def grant_premium_access(user_id):
         init_user_state(user_id)
     
     user_states[user_id]['premium_until'] = datetime.now(timezone.utc) + timedelta(hours=PREMIUM_DURATION_HOURS)
+    # Save to persistent storage
+    save_user_states(user_states)
+    print(f"💎 Premium access granted to user {user_id} until {user_states[user_id]['premium_until']}")
 
 
 async def create_shortened_link(user_id):
@@ -359,6 +374,8 @@ async def create_shortened_link(user_id):
     
     # Store the token in user state for verification
     user_states[user_id]['ad_token'] = full_token
+    # Save to persistent storage
+    save_user_states(user_states)
     
     # Create Telegram bot deep link
     # Format: https://t.me/BotUsername?start=token
@@ -379,6 +396,8 @@ async def create_shortened_link(user_id):
                     
                     # Store the shortened link in user state
                     user_states[user_id]['ad_link'] = shortened_url
+                    # Save to persistent storage
+                    save_user_states(user_states)
                     
                     print(f"✅ Created shortened link for user {user_id}: {shortened_url}")
                     print(f"   Token: {full_token}")
@@ -729,6 +748,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Clear the stored token
                         user_states[user_id]['ad_token'] = None
                         user_states[user_id]['ad_link'] = None
+                        # Save to persistent storage
+                        save_user_states(user_states)
                         
                         # Calculate expiry time in IST
                         expiry_time_utc = user_states[user_id]['premium_until']
@@ -1074,6 +1095,20 @@ def main():
     """Start the bot"""
     print("🤖 Starting Videos Bot System...")
     print("=" * 50)
+    
+    # Clean up expired data on startup
+    print("\n🧹 Cleaning up expired data...")
+    cleanup_expired_data(user_states)
+    
+    # Display statistics
+    stats = get_stats(user_states)
+    print(f"\n📊 User Statistics:")
+    print(f"   Total users: {stats['total_users']}")
+    print(f"   💎 Premium users: {stats['premium_users']}")
+    print(f"   🆓 Free users: {stats['free_users']}")
+    print(f"   🎬 Total videos watched: {stats['total_videos_watched']}")
+    print(f"   📈 Avg videos per user: {stats['avg_videos_per_user']:.1f}")
+    print()
     
     # Start the admin bot in a separate process (Windows only)
     # On Linux, use start_bots.sh script instead
