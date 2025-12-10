@@ -613,59 +613,55 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 # Get a random message ID
                 message_id = get_random_video(user_id)
                 
-                # Check if user can still download videos (first 2 videos for normal users)
                 # Initialize downloaded_count if it doesn't exist (for existing users)
                 if 'downloaded_count' not in user_states[user_id]:
                     user_states[user_id]['downloaded_count'] = 0
                     save_user_states(user_states)
                 
                 downloaded_count = user_states[user_id]['downloaded_count']
-                can_download = downloaded_count < DOWNLOADABLE_VIDEOS_LIMIT
+                can_show_download_button = downloaded_count < DOWNLOADABLE_VIDEOS_LIMIT
                 
-                # Try to copy the message from the channel
-                # Allow download/save for first 2 videos, then protect content
+                # Always send videos with protection enabled initially
+                # Users must click the Download button to get an unprotected copy
                 video_msg = await context.bot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=CHANNEL_IDENTIFIER,
                     message_id=message_id,
-                    protect_content=not can_download  # False for first 2 videos, True after that
+                    protect_content=True  # Always protected initially
                 )
                 
                 # If we got here, the message was sent successfully
                 # Mark video as seen
                 mark_video_as_seen(user_id, message_id)
                 
-                # Increment downloaded count if user can still download
-                if can_download:
-                    user_states[user_id]['downloaded_count'] += 1
-                    save_user_states(user_states)
-                    remaining_downloads = DOWNLOADABLE_VIDEOS_LIMIT - user_states[user_id]['downloaded_count']
-                
                 # Increment daily video count (for non-premium users)
                 if not is_premium_user(user_id):
                     increment_video_count(user_id)
                 
-                # Create "Next" button with deletion warning
-                keyboard = [[InlineKeyboardButton("▶️ Next", callback_data='next_video')]]
+                # Create buttons based on download availability
+                keyboard = []
+                
+                # Add Download button if user has downloads remaining
+                if can_show_download_button:
+                    remaining = DOWNLOADABLE_VIDEOS_LIMIT - downloaded_count
+                    # Store video info for download callback: format is "download_channelMsgId"
+                    download_callback = f"download_{message_id}"
+                    keyboard.append([InlineKeyboardButton(f"📥 Download ({remaining} left)", callback_data=download_callback)])
+                
+                # Always add Next button
+                keyboard.append([InlineKeyboardButton("▶️ Next", callback_data='next_video')])
+                
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                # Send "Next" button with deletion warning and download info
-                if can_download:
-                    if remaining_downloads > 0:
-                        warning_text = (
-                            f"👆 Enjoy the video!\n\n"
-                            f"💾 You can download/save this video!\n"
-                            f"📥 Remaining downloads: {remaining_downloads}\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
-                        )
-                    else:
-                        warning_text = (
-                            f"👆 Enjoy the video!\n\n"
-                            f"💾 You can download/save this video!\n"
-                            f"📥 This was your last downloadable video.\n"
-                            f"🔒 Future videos will be protected.\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
-                        )
+                # Send message with appropriate text
+                if can_show_download_button:
+                    remaining = DOWNLOADABLE_VIDEOS_LIMIT - downloaded_count
+                    warning_text = (
+                        f"👆 Enjoy the video!\n\n"
+                        f"💾 Click 'Download' button to get a downloadable copy\n"
+                        f"� Downloads remaining: {remaining}\n\n"
+                        f"⚠️ This video will be deleted after 10 minutes."
+                    )
                 else:
                     warning_text = (
                         f"👆 Enjoy the video!\n\n"
@@ -688,8 +684,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 )
                 
                 video_sent = True
-                download_status = "downloadable" if can_download else "protected"
-                print(f"✅ Sent video message ID {message_id} to user {user_id} ({download_status})")
+                print(f"✅ Sent video message ID {message_id} to user {user_id} (protected, downloads remaining: {DOWNLOADABLE_VIDEOS_LIMIT - downloaded_count})")
                 break  # Success! Exit the loop
                 
             except Exception as e:
@@ -1029,7 +1024,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"✅ **Verified!**\n\n"
                     f"Welcome {first_name}! 👋\n\n"
                     f"You've successfully joined the channel!\n\n"
-                    f"🎥 You can watch **10 videos per hour** for free!\n"
+                    f"🎥 You can watch **15 videos per hour** for free!\n"
                     f"⏰ Your limit resets every hour!\n\n"
                     f"💎 Want unlimited access? Watch an ad to get **12 hours of premium**!\n\n"
                     f"Click below to start watching! 🍿",
@@ -1125,6 +1120,118 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  "✅ Premium will activate automatically when you return!",
             parse_mode='Markdown'
         )
+    
+    elif query.data.startswith('download_'):
+        # User clicked Download button - send unprotected copy
+        # Extract message ID from callback data (format: "download_messageId")
+        try:
+            message_id = int(query.data.split('_')[1])
+            user_id = query.from_user.id
+            
+            # Initialize downloaded_count if it doesn't exist
+            if 'downloaded_count' not in user_states[user_id]:
+                user_states[user_id]['downloaded_count'] = 0
+                save_user_states(user_states)
+            
+            downloaded_count = user_states[user_id]['downloaded_count']
+            
+            # Check if user still has downloads remaining
+            if downloaded_count >= DOWNLOADABLE_VIDEOS_LIMIT:
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="❌ **Download Limit Reached!**\n\n"
+                         f"You've already downloaded {DOWNLOADABLE_VIDEOS_LIMIT} videos.\n"
+                         "You cannot download more videos."
+                )
+                return
+            
+            # Send unprotected copy of the video
+            try:
+                download_msg = await context.bot.copy_message(
+                    chat_id=query.message.chat_id,
+                    from_chat_id=CHANNEL_IDENTIFIER,
+                    message_id=message_id,
+                    protect_content=False  # Unprotected - can be downloaded/saved/forwarded
+                )
+                
+                # Increment download count
+                user_states[user_id]['downloaded_count'] += 1
+                save_user_states(user_states)
+                
+                remaining = DOWNLOADABLE_VIDEOS_LIMIT - user_states[user_id]['downloaded_count']
+                
+                # Update the original message buttons
+                keyboard = []
+                
+                # Show updated download button or remove it if no downloads left
+                if remaining > 0:
+                    download_callback = f"download_{message_id}"
+                    keyboard.append([InlineKeyboardButton(f"📥 Download ({remaining} left)", callback_data=download_callback)])
+                
+                # Always keep Next button
+                keyboard.append([InlineKeyboardButton("▶️ Next", callback_data='next_video')])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # Update the message text
+                if remaining > 0:
+                    new_text = (
+                        f"👆 Enjoy the video!\n\n"
+                        f"✅ Downloadable copy sent above!\n"
+                        f"📥 Downloads remaining: {remaining}\n\n"
+                        f"⚠️ This video will be deleted after 10 minutes."
+                    )
+                else:
+                    new_text = (
+                        f"👆 Enjoy the video!\n\n"
+                        f"✅ Downloadable copy sent above!\n"
+                        f"🔒 Download limit reached (2 videos).\n\n"
+                        f"⚠️ This video will be deleted after 10 minutes."
+                    )
+                
+                # Try to update the original message
+                try:
+                    await query.message.edit_text(
+                        text=new_text,
+                        reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    if "Message is not modified" not in str(e):
+                        print(f"⚠️ Error updating message: {e}")
+                
+                # Send confirmation message
+                if remaining > 0:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=f"✅ **Download Successful!**\n\n"
+                             f"The video above can be saved/forwarded.\n"
+                             f"📥 You have {remaining} download(s) remaining."
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=f"✅ **Download Successful!**\n\n"
+                             f"The video above can be saved/forwarded.\n"
+                             f"🔒 This was your last download. Future videos will be protected."
+                    )
+                
+                print(f"📥 User {user_id} downloaded video {message_id} ({remaining} downloads remaining)")
+                
+            except Exception as e:
+                print(f"❌ Error sending downloadable video: {e}")
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="❌ **Error!**\n\n"
+                         "Could not send downloadable copy. The video may no longer be available."
+                )
+        
+        except Exception as e:
+            print(f"❌ Error processing download request: {e}")
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="❌ **Error!**\n\n"
+                     "Could not process download request. Please try again."
+            )
 
 
 
