@@ -26,7 +26,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME')
-CHANNEL_ID = -1003389539131  # Private channel ID
+CHANNEL_ID = -1003067861005  # Private channel ID
 
 # Use channel ID for private channels, username for public channels
 CHANNEL_IDENTIFIER = CHANNEL_ID if CHANNEL_ID else f"@{CHANNEL_USERNAME}"
@@ -57,15 +57,17 @@ used_tokens = set()
 all_users = set()
 
 # Hourly video limit for free users (resets every hour)
-HOURLY_VIDEO_LIMIT = 10
+HOURLY_VIDEO_LIMIT = 15
 # Premium access duration after watching ad (12 hours)
 PREMIUM_DURATION_HOURS = 12
+# Number of videos that can be downloaded/saved by normal users
+DOWNLOADABLE_VIDEOS_LIMIT = 2
 
 # VPLink API Configuration
 VPLINK_API_TOKEN = "602a4c7facf8ec279b28f8763cd0f5e246252d59"
 VPLINK_API_URL = "https://vplink.in/api"
 # Bot username for deep links
-BOT_USERNAME = "Videos1_69_bot"
+BOT_USERNAME = "Test_videos69_bot"
 # Secret key for encrypting verification tokens
 SECRET_KEY = "your_secret_key_here_change_this"  # Change this to a random secret
 
@@ -248,7 +250,7 @@ def get_random_video(user_id):
     
     # Configuration: message ID range in your channel
     MIN_MESSAGE_ID = 1
-    MAX_MESSAGE_ID = 20000  # Adjust based on your channel size
+    MAX_MESSAGE_ID = 10  # Adjust based on your channel size
     
     # Generate a list of all possible message IDs
     all_message_ids = list(range(MIN_MESSAGE_ID, MAX_MESSAGE_ID + 1))
@@ -465,7 +467,7 @@ async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
         f"⏰ Time: **{time_str} IST**\n"
         f"📅 Date: **{date_str}**\n\n"
         f"✨ Your hourly limit has been renewed!\n"
-        f"🎥 You can now watch **10 free videos**\n\n"
+        f"🎥 You can now watch **15 free videos**\n\n"
         f"💎 No ads required - just start watching!\n\n"
         f"Click below to start watching!\n\n"
         f"Enjoy! 🍿"
@@ -592,7 +594,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=f"❌ **Hourly Limit Reached!**\n\n"
-                     f"You've watched all 10 videos for this hour.\n\n"
+                     f"You've watched all 15 videos for this hour.\n\n"
                      f"**Options**:\n"
                      f"• 📺 Watch an ad to get 12 hours of unlimited access\n"
                      f"• ⏰ Wait {minutes_until_reset} minutes for your hourly limit to reset at {next_reset_ist.strftime('%I:%M %p')} IST\n\n"
@@ -611,17 +613,33 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 # Get a random message ID
                 message_id = get_random_video(user_id)
                 
+                # Check if user can still download videos (first 2 videos for normal users)
+                # Initialize downloaded_count if it doesn't exist (for existing users)
+                if 'downloaded_count' not in user_states[user_id]:
+                    user_states[user_id]['downloaded_count'] = 0
+                    save_user_states(user_states)
+                
+                downloaded_count = user_states[user_id]['downloaded_count']
+                can_download = downloaded_count < DOWNLOADABLE_VIDEOS_LIMIT
+                
                 # Try to copy the message from the channel
+                # Allow download/save for first 2 videos, then protect content
                 video_msg = await context.bot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=CHANNEL_IDENTIFIER,
                     message_id=message_id,
-                    protect_content=True  # Disable forward/copy/save options
+                    protect_content=not can_download  # False for first 2 videos, True after that
                 )
                 
                 # If we got here, the message was sent successfully
                 # Mark video as seen
                 mark_video_as_seen(user_id, message_id)
+                
+                # Increment downloaded count if user can still download
+                if can_download:
+                    user_states[user_id]['downloaded_count'] += 1
+                    save_user_states(user_states)
+                    remaining_downloads = DOWNLOADABLE_VIDEOS_LIMIT - user_states[user_id]['downloaded_count']
                 
                 # Increment daily video count (for non-premium users)
                 if not is_premium_user(user_id):
@@ -631,10 +649,33 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 keyboard = [[InlineKeyboardButton("▶️ Next", callback_data='next_video')]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                # Send "Next" button with deletion warning
+                # Send "Next" button with deletion warning and download info
+                if can_download:
+                    if remaining_downloads > 0:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"💾 You can download/save this video!\n"
+                            f"📥 Remaining downloads: {remaining_downloads}\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
+                    else:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"💾 You can download/save this video!\n"
+                            f"📥 This was your last downloadable video.\n"
+                            f"🔒 Future videos will be protected.\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
+                else:
+                    warning_text = (
+                        f"👆 Enjoy the video!\n\n"
+                        f"🔒 Download limit reached (2 videos).\n"
+                        f"⚠️ This video will be deleted after 10 minutes."
+                    )
+                
                 warning_msg = await context.bot.send_message(
                     chat_id=chat_id,
-                    text="👆 Enjoy the video!\n\n⚠️ This video will be deleted after 10 minutes.",
+                    text=warning_text,
                     reply_markup=reply_markup
                 )
                 
@@ -647,7 +688,8 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 )
                 
                 video_sent = True
-                print(f"✅ Sent video message ID {message_id} to user {user_id}")
+                download_status = "downloadable" if can_download else "protected"
+                print(f"✅ Sent video message ID {message_id} to user {user_id} ({download_status})")
                 break  # Success! Exit the loop
                 
             except Exception as e:
