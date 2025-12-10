@@ -428,7 +428,7 @@ def validate_ad_link(user_id, clicked_link):
     return False
 
 async def delete_messages(context: ContextTypes.DEFAULT_TYPE):
-    """Delete messages after 10 minutes"""
+    """Delete messages after 20 minutes"""
     job_data = context.job.data
     chat_id = job_data['chat_id']
     message_ids = job_data['message_ids']
@@ -672,20 +672,20 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                             f"💎 Premium User Benefits:\n"
                             f"📥 Click 'Download' button to get a downloadable copy\n"
                             f"📥 Downloads remaining: {remaining}/{download_limit}\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
+                            f"⚠️ This video will be deleted after 20 minutes."
                         )
                     else:
                         warning_text = (
                             f"👆 Enjoy the video!\n\n"
                             f"💾 Click 'Download' button to get a downloadable copy\n"
                             f"📥 Downloads remaining: {remaining}\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
+                            f"⚠️ This video will be deleted after 20 minutes."
                         )
                 else:
                     warning_text = (
                         f"👆 Enjoy the video!\n\n"
                         f"🔒 Download limit reached ({download_limit} videos).\n"
-                        f"⚠️ This video will be deleted after 10 minutes."
+                        f"⚠️ This video will be deleted after 20 minutes."
                     )
                 
                 warning_msg = await context.bot.send_message(
@@ -694,10 +694,10 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                     reply_markup=reply_markup
                 )
                 
-                # Schedule deletion of both video and warning message after 10 minutes (600 seconds)
+                # Schedule deletion of both video and warning message after 20 minutes (1200 seconds)
                 context.job_queue.run_once(
                     delete_messages,
-                    when=600,  # 10 minutes in seconds
+                    when=1200,  # 20 minutes in seconds
                     data={'chat_id': chat_id, 'message_ids': [video_msg.message_id, warning_msg.message_id]},
                     name=f"delete_{chat_id}_{video_msg.message_id}"
                 )
@@ -1204,21 +1204,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"👆 Enjoy the video!\n\n"
                             f"✅ Downloadable copy sent above!\n"
                             f"💎 Premium: Downloads remaining: {remaining}/{download_limit}\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
+                            f"⚠️ This video will be deleted after 20 minutes."
                         )
                     else:
                         new_text = (
                             f"👆 Enjoy the video!\n\n"
                             f"✅ Downloadable copy sent above!\n"
                             f"📥 Downloads remaining: {remaining}\n\n"
-                            f"⚠️ This video will be deleted after 10 minutes."
+                            f"⚠️ This video will be deleted after 20 minutes."
                         )
                 else:
                     new_text = (
                         f"👆 Enjoy the video!\n\n"
                         f"✅ Downloadable copy sent above!\n"
                         f"🔒 Download limit reached ({download_limit} videos).\n\n"
-                        f"⚠️ This video will be deleted after 10 minutes."
+                        f"⚠️ This video will be deleted after 20 minutes."
                     )
                 
                 # Try to update the original message
