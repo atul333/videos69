@@ -60,8 +60,10 @@ all_users = set()
 HOURLY_VIDEO_LIMIT = 15
 # Premium access duration after watching ad (12 hours)
 PREMIUM_DURATION_HOURS = 12
-# Number of videos that can be downloaded/saved by normal users
+# Number of videos that can be downloaded/saved by normal users (per hour)
 DOWNLOADABLE_VIDEOS_LIMIT = 2
+# Number of videos that can be downloaded by premium users (per hour)
+PREMIUM_DOWNLOADABLE_VIDEOS_LIMIT = 20
 
 # VPLink API Configuration
 VPLINK_API_TOKEN = "602a4c7facf8ec279b28f8763cd0f5e246252d59"
@@ -313,9 +315,11 @@ def check_and_reset_hourly_limit(user_id):
     # Reset if we've moved to a new hour
     if current_hour_start > user_state['last_reset']:
         user_state['hourly_count'] = 0
+        user_state['downloaded_count'] = 0  # Reset download count every hour
         user_state['last_reset'] = current_hour_start
         # Save to persistent storage
         save_user_states(user_states)
+        print(f"🔄 Hourly reset for user {user_id}: watch count and download count reset")
         return True  # Indicate that reset occurred
     return False  # No reset occurred
 
@@ -467,8 +471,10 @@ async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
         f"⏰ Time: **{time_str} IST**\n"
         f"📅 Date: **{date_str}**\n\n"
         f"✨ Your hourly limit has been renewed!\n"
-        f"🎥 You can now watch **15 free videos**\n\n"
-        f"💎 No ads required - just start watching!\n\n"
+        f"🎥 You can now watch **15 free videos**\n"
+        f"📥 You can download **2 videos**\n"
+        f"💎 Premium users get **20 downloads**!\n\n"
+        f"💎 Want unlimited videos + 20 downloads? Watch an ad!\n\n"
         f"Click below to start watching!\n\n"
         f"Enjoy! 🍿"
     )
@@ -619,7 +625,11 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                     save_user_states(user_states)
                 
                 downloaded_count = user_states[user_id]['downloaded_count']
-                can_show_download_button = downloaded_count < DOWNLOADABLE_VIDEOS_LIMIT
+                
+                # Determine download limit based on premium status
+                is_premium = is_premium_user(user_id)
+                download_limit = PREMIUM_DOWNLOADABLE_VIDEOS_LIMIT if is_premium else DOWNLOADABLE_VIDEOS_LIMIT
+                can_show_download_button = downloaded_count < download_limit
                 
                 # Always send videos with protection enabled initially
                 # Users must click the Download button to get an unprotected copy
@@ -635,7 +645,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 mark_video_as_seen(user_id, message_id)
                 
                 # Increment daily video count (for non-premium users)
-                if not is_premium_user(user_id):
+                if not is_premium:
                     increment_video_count(user_id)
                 
                 # Create buttons based on download availability
@@ -643,7 +653,7 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 
                 # Add Download button if user has downloads remaining
                 if can_show_download_button:
-                    remaining = DOWNLOADABLE_VIDEOS_LIMIT - downloaded_count
+                    remaining = download_limit - downloaded_count
                     # Store video info for download callback: format is "download_channelMsgId"
                     download_callback = f"download_{message_id}"
                     keyboard.append([InlineKeyboardButton(f"📥 Download ({remaining} left)", callback_data=download_callback)])
@@ -655,17 +665,26 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 
                 # Send message with appropriate text
                 if can_show_download_button:
-                    remaining = DOWNLOADABLE_VIDEOS_LIMIT - downloaded_count
-                    warning_text = (
-                        f"👆 Enjoy the video!\n\n"
-                        f"💾 Click 'Download' button to get a downloadable copy\n"
-                        f"� Downloads remaining: {remaining}\n\n"
-                        f"⚠️ This video will be deleted after 10 minutes."
-                    )
+                    remaining = download_limit - downloaded_count
+                    if is_premium:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"💎 Premium User Benefits:\n"
+                            f"📥 Click 'Download' button to get a downloadable copy\n"
+                            f"📥 Downloads remaining: {remaining}/{download_limit}\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
+                    else:
+                        warning_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"💾 Click 'Download' button to get a downloadable copy\n"
+                            f"📥 Downloads remaining: {remaining}\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
                 else:
                     warning_text = (
                         f"👆 Enjoy the video!\n\n"
-                        f"🔒 Download limit reached (2 videos).\n"
+                        f"🔒 Download limit reached ({download_limit} videos).\n"
                         f"⚠️ This video will be deleted after 10 minutes."
                     )
                 
@@ -1025,7 +1044,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"Welcome {first_name}! 👋\n\n"
                     f"You've successfully joined the channel!\n\n"
                     f"🎥 You can watch **15 videos per hour** for free!\n"
-                    f"⏰ Your limit resets every hour!\n\n"
+                    f"📥 You can download **2 videos per hour**!\n"
+                    f"⏰ Your limits reset every hour!\n\n"
                     f"💎 Want unlimited access? Watch an ad to get **12 hours of premium**!\n\n"
                     f"Click below to start watching! 🍿",
                     parse_mode='Markdown',
@@ -1135,13 +1155,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             downloaded_count = user_states[user_id]['downloaded_count']
             
+            # Determine download limit based on premium status
+            is_premium = is_premium_user(user_id)
+            download_limit = PREMIUM_DOWNLOADABLE_VIDEOS_LIMIT if is_premium else DOWNLOADABLE_VIDEOS_LIMIT
+            
             # Check if user still has downloads remaining
-            if downloaded_count >= DOWNLOADABLE_VIDEOS_LIMIT:
+            if downloaded_count >= download_limit:
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
                     text="❌ **Download Limit Reached!**\n\n"
-                         f"You've already downloaded {DOWNLOADABLE_VIDEOS_LIMIT} videos.\n"
-                         "You cannot download more videos."
+                         f"You've already downloaded {download_limit} videos.\n"
+                         "You cannot download more videos this hour."
                 )
                 return
             
@@ -1158,7 +1182,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_states[user_id]['downloaded_count'] += 1
                 save_user_states(user_states)
                 
-                remaining = DOWNLOADABLE_VIDEOS_LIMIT - user_states[user_id]['downloaded_count']
+                remaining = download_limit - user_states[user_id]['downloaded_count']
                 
                 # Update the original message buttons
                 keyboard = []
@@ -1175,17 +1199,25 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Update the message text
                 if remaining > 0:
-                    new_text = (
-                        f"👆 Enjoy the video!\n\n"
-                        f"✅ Downloadable copy sent above!\n"
-                        f"📥 Downloads remaining: {remaining}\n\n"
-                        f"⚠️ This video will be deleted after 10 minutes."
-                    )
+                    if is_premium:
+                        new_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"✅ Downloadable copy sent above!\n"
+                            f"💎 Premium: Downloads remaining: {remaining}/{download_limit}\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
+                    else:
+                        new_text = (
+                            f"👆 Enjoy the video!\n\n"
+                            f"✅ Downloadable copy sent above!\n"
+                            f"📥 Downloads remaining: {remaining}\n\n"
+                            f"⚠️ This video will be deleted after 10 minutes."
+                        )
                 else:
                     new_text = (
                         f"👆 Enjoy the video!\n\n"
                         f"✅ Downloadable copy sent above!\n"
-                        f"🔒 Download limit reached (2 videos).\n\n"
+                        f"🔒 Download limit reached ({download_limit} videos).\n\n"
                         f"⚠️ This video will be deleted after 10 minutes."
                     )
                 
@@ -1201,12 +1233,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Send confirmation message
                 if remaining > 0:
-                    await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=f"✅ **Download Successful!**\n\n"
-                             f"The video above can be saved/forwarded.\n"
-                             f"📥 You have {remaining} download(s) remaining."
-                    )
+                    if is_premium:
+                        await context.bot.send_message(
+                            chat_id=query.message.chat_id,
+                            text=f"✅ **Download Successful!**\n\n"
+                                 f"The video above can be saved/forwarded.\n"
+                                 f"💎 Premium: You have {remaining}/{download_limit} download(s) remaining."
+                        )
+                    else:
+                        await context.bot.send_message(
+                            chat_id=query.message.chat_id,
+                            text=f"✅ **Download Successful!**\n\n"
+                                 f"The video above can be saved/forwarded.\n"
+                                 f"📥 You have {remaining} download(s) remaining."
+                        )
                 else:
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,

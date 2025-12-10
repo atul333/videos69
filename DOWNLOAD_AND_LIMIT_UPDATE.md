@@ -63,31 +63,49 @@ new_state = {
 - Sends confirmation message
 - Removes Download button after 2 downloads
 
-### 5. Broadcast Messages
+### 5. Hourly Reset Function (video69_bot.py)
+
+**Lines 302-322:**
+- Modified `check_and_reset_hourly_limit()` function
+- Now resets **both** `hourly_count` and `downloaded_count` every hour
+- Users get 2 fresh downloads every hour along with 15 video watches
+- Added logging for reset events
+
+### 6. Broadcast Messages
 
 **Line 470:**
 - Updated hourly reset broadcast: "You can now watch **15 free videos**" (was 10)
+- Added: "You can download **2 videos**"
 
 **Line 597:**
 - Updated limit reached message: "You've watched all 15 videos for this hour." (was 10)
 
-**Line 1027:**
+**Line 1030:**
 - Updated membership verification: "You can watch **15 videos per hour** for free!" (was 10)
+- Added: "You can download **2 videos per hour**!"
+
 
 ## How It Works
 
-### Download Feature (On-Demand)
+### Download Feature (On-Demand with Hourly Reset)
 1. **All videos are protected by default** - users cannot download/save/forward initially
 2. **Download button appears** below each video if user has downloads remaining
 3. **User clicks Download button** when they want to save a specific video
 4. **Bot sends unprotected copy** of that video (can be downloaded/saved/forwarded)
 5. **Download count increments** and button updates to show remaining downloads
-6. **After 2 downloads**, the Download button is removed from all future videos
+6. **After 2 downloads**, the Download button is removed until the next hour
+7. **Every hour, download limit resets** - users get 2 fresh downloads again
 
 ### Watch Limit
 1. Free users can watch **15 videos per hour** (increased from 10)
 2. The limit resets at the start of each hour
 3. Premium users still have unlimited access
+
+### Hourly Reset Behavior
+**At the start of each hour (e.g., 1:00 PM, 2:00 PM, etc.):**
+- Watch count resets to 0 (can watch 15 more videos)
+- Download count resets to 0 (can download 2 more videos)
+- Users receive a broadcast notification about the reset
 
 ## Backward Compatibility
 
