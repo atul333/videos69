@@ -572,10 +572,31 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                 if datetime.now(timezone.utc) >= premium_until:
                     # Premium has expired - calculate next hourly reset
                     now = datetime.now(timezone.utc)
-                    next_reset = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-                    next_reset_ist = utc_to_ist(next_reset)
+                    now_ist = utc_to_ist(now)
+                    
+                    # Calculate next 6-hour period (00:00, 06:00, 12:00, 18:00)
+                    current_hour = now_ist.hour
+                    next_period_hour = ((current_hour // 6) + 1) * 6
+                    
+                    if next_period_hour >= 24:
+                        # Next period is tomorrow at 00:00
+                        next_reset_ist = (now_ist + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    else:
+                        # Next period is today
+                        next_reset_ist = now_ist.replace(hour=next_period_hour, minute=0, second=0, microsecond=0)
+                    
+                    # Convert back to UTC for time calculation
+                    next_reset = next_reset_ist - timedelta(hours=5, minutes=30)
+                    
                     time_until_reset = next_reset - now
                     minutes_until_reset = int(time_until_reset.total_seconds() / 60)
+                    hours_until_reset = int(time_until_reset.total_seconds() / 3600)
+                    
+                    # Format time until reset
+                    if hours_until_reset > 0:
+                        time_msg = f"{hours_until_reset} hour(s) and {minutes_until_reset % 60} minute(s)"
+                    else:
+                        time_msg = f"{minutes_until_reset} minute(s)"
                     
                     keyboard = [[InlineKeyboardButton("📺 Watch Ad", callback_data='watch_ad')]]
                     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -585,19 +606,34 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                         text=f"⏰ **Premium Access Expired!**\n\n"
                              f"Your premium access has ended.\n\n"
                              f"**Options**:\n"
-                             f"• 📺 Watch an ad to get 12 more hours of premium\n"
-                             f"• ⏰ Wait {minutes_until_reset} minutes for your hourly limit to reset at {next_reset_ist.strftime('%I:%M %p')} IST\n\n"
+                             f"• 📺 Watch an ad to get **12 more hours of premium**\n"
+                             f"• ⏰ Wait **{time_msg}** for your limit to reset at **{next_reset_ist.strftime('%I:%M %p')} IST**\n\n"
+                             f"⏱️ Limits reset every 6 hours at: 12 AM, 6 AM, 12 PM, 6 PM\n\n"
                              f"Choose an option below:",
                         parse_mode='Markdown',
                         reply_markup=reply_markup
                     )
                     return
             
-            # Regular hourly limit reached (no premium or never had premium)
-            # Calculate next reset time
+            # Regular limit reached (no premium or never had premium)
+            # Calculate next 6-hour period reset time
             now = datetime.now(timezone.utc)
-            next_reset = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-            next_reset_ist = utc_to_ist(next_reset)
+            now_ist = utc_to_ist(now)
+            
+            # Calculate next 6-hour period (00:00, 06:00, 12:00, 18:00)
+            current_hour = now_ist.hour
+            next_period_hour = ((current_hour // 6) + 1) * 6
+            
+            if next_period_hour >= 24:
+                # Next period is tomorrow at 00:00
+                next_reset_ist = (now_ist + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                # Next period is today
+                next_reset_ist = now_ist.replace(hour=next_period_hour, minute=0, second=0, microsecond=0)
+            
+            # Convert back to UTC for time calculation
+            next_reset = next_reset_ist - timedelta(hours=5, minutes=30)
+            
             time_until_reset = next_reset - now
             minutes_until_reset = int(time_until_reset.total_seconds() / 60)
             hours_until_reset = int(time_until_reset.total_seconds() / 3600)
