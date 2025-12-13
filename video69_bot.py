@@ -600,17 +600,25 @@ async def send_random_video(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             next_reset_ist = utc_to_ist(next_reset)
             time_until_reset = next_reset - now
             minutes_until_reset = int(time_until_reset.total_seconds() / 60)
+            hours_until_reset = int(time_until_reset.total_seconds() / 3600)
             
             keyboard = [[InlineKeyboardButton("📺 Watch Ad", callback_data='watch_ad')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Format time until reset
+            if hours_until_reset > 0:
+                time_msg = f"{hours_until_reset} hour(s) and {minutes_until_reset % 60} minute(s)"
+            else:
+                time_msg = f"{minutes_until_reset} minute(s)"
+            
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"❌ **Hourly Limit Reached!**\n\n"
-                     f"You've watched all 15 videos for this hour.\n\n"
+                text=f"❌ **Limit Reached!**\n\n"
+                     f"You've watched all **15 videos** for this 6-hour period.\n\n"
                      f"**Options**:\n"
-                     f"• 📺 Watch an ad to get 12 hours of unlimited access\n"
-                     f"• ⏰ Wait {minutes_until_reset} minutes for your hourly limit to reset at {next_reset_ist.strftime('%I:%M %p')} IST\n\n"
+                     f"• 📺 Watch an ad to get **12 hours of unlimited access**\n"
+                     f"• ⏰ Wait **{time_msg}** for your limit to reset at **{next_reset_ist.strftime('%I:%M %p')} IST**\n\n"
+                     f"⏱️ Limits reset every 6 hours at: 12 AM, 6 AM, 12 PM, 6 PM\n\n"
                      f"Choose an option below:",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
@@ -1065,9 +1073,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"✅ **Verified!**\n\n"
                     f"Welcome {first_name}! 👋\n\n"
                     f"You've successfully joined the channel!\n\n"
-                    f"🎥 You can watch **15 videos per hour** for free!\n"
-                    f"📥 You can download **2 videos per hour**!\n"
-                    f"⏰ Your limits reset every hour!\n\n"
+                    f"🎥 You can watch **15 videos** every 6 hours for free!\n"
+                    f"📥 You can download **2 videos** every 6 hours!\n"
+                    f"⏰ Your limits reset every **6 hours** (12 AM, 6 AM, 12 PM, 6 PM)!\n\n"
                     f"💎 Want unlimited access? Watch an ad to get **12 hours of premium**!\n\n"
                     f"Click below to start watching! 🍿",
                     parse_mode='Markdown',
@@ -1189,8 +1197,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text="❌ **Download Limit Reached!**\n\n"
-                             f"You've already downloaded {download_limit} videos this hour.\n"
-                             "Your download limit will reset at the next hour."
+                             f"You've already downloaded {download_limit} videos this 6-hour period.\n"
+                             "Your download limit will reset at the next 6-hour period.\n\n"
+                             "⏱️ Resets at: 12 AM, 6 AM, 12 PM, 6 PM"
                     )
                 else:
                     # Free user reached their 2 download limit - show premium promotion
@@ -1200,12 +1209,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text="❌ **Download Limit Reached!**\n\n"
-                             f"You've already downloaded {download_limit} videos this hour.\n\n"
+                             f"You've already downloaded {download_limit} videos this 6-hour period.\n\n"
                              "💎 **Want More Downloads?**\n"
                              "Watch an ad to get Premium Access:\n\n"
                              "✅ **Unlimited** video watching\n"
-                             "✅ **20 downloads** per hour (10x more!)\n"
+                             "✅ **20 downloads** every 6 hours (10x more!)\n"
                              "✅ **12 hours** of premium access\n\n"
+                             "⏱️ Limits reset every 6 hours at: 12 AM, 6 AM, 12 PM, 6 PM\n\n"
                              "Click below to watch an ad and unlock premium! 🚀",
                         parse_mode='Markdown',
                         reply_markup=reply_markup
