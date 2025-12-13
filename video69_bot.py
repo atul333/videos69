@@ -56,13 +56,13 @@ used_tokens = set()
 # Track all users who have started the bot (for broadcasting)
 all_users = set()
 
-# Hourly video limit for free users (resets every hour)
+# Video limit for free users (resets every 6 hours)
 HOURLY_VIDEO_LIMIT = 15
 # Premium access duration after watching ad (12 hours)
 PREMIUM_DURATION_HOURS = 12
-# Number of videos that can be downloaded/saved by normal users (per hour)
+# Number of videos that can be downloaded/saved by normal users (every 6 hours)
 DOWNLOADABLE_VIDEOS_LIMIT = 2
-# Number of videos that can be downloaded by premium users (per hour)
+# Number of videos that can be downloaded by premium users (every 6 hours)
 PREMIUM_DOWNLOADABLE_VIDEOS_LIMIT = 20
 
 # VPLink API Configuration
@@ -302,24 +302,27 @@ def is_premium_user(user_id):
 
 
 def check_and_reset_hourly_limit(user_id):
-    """Check if hourly limit needs to be reset (at the start of each hour)"""
+    """Check if limit needs to be reset (every 6 hours)"""
     if user_id not in user_states:
         init_user_state(user_id)
     
     user_state = user_states[user_id]
     now = datetime.now(timezone.utc)
     
-    # Get the start of the current hour
-    current_hour_start = now.replace(minute=0, second=0, microsecond=0)
+    # Calculate the start of the current 6-hour period
+    # Periods: 00:00-06:00, 06:00-12:00, 12:00-18:00, 18:00-24:00
+    current_hour = now.hour
+    period_start_hour = (current_hour // 6) * 6  # 0, 6, 12, or 18
+    current_period_start = now.replace(hour=period_start_hour, minute=0, second=0, microsecond=0)
     
-    # Reset if we've moved to a new hour
-    if current_hour_start > user_state['last_reset']:
+    # Reset if we've moved to a new 6-hour period
+    if current_period_start > user_state['last_reset']:
         user_state['hourly_count'] = 0
-        user_state['downloaded_count'] = 0  # Reset download count every hour
-        user_state['last_reset'] = current_hour_start
+        user_state['downloaded_count'] = 0  # Reset download count every 6 hours
+        user_state['last_reset'] = current_period_start
         # Save to persistent storage
         save_user_states(user_states)
-        print(f"🔄 Hourly reset for user {user_id}: watch count and download count reset")
+        print(f"🔄 6-hour reset for user {user_id}: watch count and download count reset")
         return True  # Indicate that reset occurred
     return False  # No reset occurred
 
@@ -446,10 +449,10 @@ async def delete_messages(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
-    """Broadcast message to all users about hourly limit reset - sent every hour"""
+    """Broadcast message to all users about limit reset - sent every 6 hours"""
     
     print("\n" + "=" * 60)
-    print("🔔 HOURLY BROADCAST TRIGGERED!")
+    print("🔔 6-HOUR RESET BROADCAST TRIGGERED!")
     print("=" * 60)
     
     # Get current time in IST
@@ -467,13 +470,14 @@ async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message_text = (
-        f"🎬 **Hourly Limit Reset!** 🎬\n\n"
+        f"🎬 **Limit Reset!** 🎬\n\n"
         f"⏰ Time: **{time_str} IST**\n"
         f"📅 Date: **{date_str}**\n\n"
-        f"✨ Your hourly limit has been renewed!\n"
+        f"✨ Your limits have been renewed!\n"
         f"🎥 You can now watch **15 free videos**\n"
         f"📥 You can download **2 videos**\n"
         f"💎 Premium users get **20 downloads**!\n\n"
+        f"⏱️ Limits reset every **6 hours**\n"
         f"💎 Want unlimited videos + 20 downloads? Watch an ad!\n\n"
         f"Click below to start watching!\n\n"
         f"Enjoy! 🍿"
@@ -516,7 +520,7 @@ async def broadcast_hourly_reset(context: ContextTypes.DEFAULT_TYPE):
     if blocked_users:
         batch_remove_users(blocked_users)
     
-    print(f"📢 Hourly broadcast complete! Sent to {successful} users, {failed} failed")
+    print(f"📢 6-hour reset broadcast complete! Sent to {successful} users, {failed} failed")
     print(f"⏰ Broadcast time: {time_str} IST")
     print(f"📅 Broadcast date: {date_str}")
     print(f"👥 Total users in database: {get_user_count()}")
@@ -1386,48 +1390,49 @@ def main():
         
         # Channel post handler disabled - using random message IDs
         
-        # Schedule hourly broadcast at :30 minutes of each hour (1:30 PM, 2:30 PM, etc.)
+        # Schedule broadcast every 6 hours (00:00, 06:00, 12:00, 18:00)
         from datetime import time
         import pytz
         
         # IST timezone
         ist_tz = pytz.timezone('Asia/Kolkata')
         
-        # Calculate when to run the first broadcast (at the next :30 mark)
+        # Calculate when to run the first broadcast (at the next 6-hour period start)
         now_utc = datetime.now(timezone.utc)
         now_ist = now_utc + timedelta(hours=5, minutes=30)
         
-        # Calculate next :30 minute mark
-        # If current time is before :30 of this hour, next broadcast is at :30 of this hour
-        # If current time is after :30 of this hour, next broadcast is at :30 of next hour
-        if now_ist.minute < 30:
-            # Next broadcast is at :30 of current hour
-            next_broadcast_ist = now_ist.replace(minute=30, second=0, microsecond=0)
+        # Calculate next 6-hour period start (00:00, 06:00, 12:00, or 18:00)
+        current_hour = now_ist.hour
+        next_period_hour = ((current_hour // 6) + 1) * 6
+        
+        if next_period_hour >= 24:
+            # Next period is tomorrow at 00:00
+            next_broadcast_ist = (now_ist + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            # Next broadcast is at :30 of next hour
-            next_broadcast_ist = (now_ist + timedelta(hours=1)).replace(minute=30, second=0, microsecond=0)
+            # Next period is today
+            next_broadcast_ist = now_ist.replace(hour=next_period_hour, minute=0, second=0, microsecond=0)
         
         next_broadcast_utc = next_broadcast_ist - timedelta(hours=5, minutes=30)
         
-        # Calculate seconds until next :30 mark
+        # Calculate seconds until next 6-hour period
         seconds_until_next_broadcast = (next_broadcast_utc - now_utc).total_seconds()
         
-        # Schedule for every hour at :30 minutes
+        # Schedule for every 6 hours
         job_queue = application.job_queue
         
-        # Run at :30 of every hour
+        # Run every 6 hours at 00:00, 06:00, 12:00, 18:00
         job_queue.run_repeating(
             broadcast_hourly_reset,
-            interval=3600,  # Every hour in seconds
-            first=seconds_until_next_broadcast,  # Wait until next :30 mark
-            name='hourly_broadcast'
+            interval=21600,  # Every 6 hours in seconds (6 * 3600)
+            first=seconds_until_next_broadcast,  # Wait until next 6-hour period
+            name='6hour_broadcast'
         )
         
-        print(f"📢 Hourly broadcast scheduler enabled!")
+        print(f"📢 6-hour broadcast scheduler enabled!")
         print(f"   Current time: {now_ist.strftime('%I:%M %p')} IST")
         print(f"   Next broadcast: {next_broadcast_ist.strftime('%I:%M %p')} IST")
         print(f"   Waiting: {int(seconds_until_next_broadcast / 60)} minutes {int(seconds_until_next_broadcast % 60)} seconds")
-        print(f"   Then every hour at :30 minutes (1:30 PM, 2:30 PM, 3:30 PM, etc.)")
+        print(f"   Then every 6 hours at: 12:00 AM, 6:00 AM, 12:00 PM, 6:00 PM")
         print()
         
         # Start the bot
