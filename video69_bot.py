@@ -26,7 +26,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME')
-CHANNEL_ID = -1003067861005  # Private channel ID
+CHANNEL_ID = int(os.getenv('CHANNEL_ID', '-1003067861005'))  # Private channel ID from .env
 
 # Use channel ID for private channels, username for public channels
 CHANNEL_IDENTIFIER = CHANNEL_ID if CHANNEL_ID else f"@{CHANNEL_USERNAME}"
@@ -68,10 +68,14 @@ PREMIUM_DOWNLOADABLE_VIDEOS_LIMIT = 20
 # VPLink API Configuration
 VPLINK_API_TOKEN = "602a4c7facf8ec279b28f8763cd0f5e246252d59"
 VPLINK_API_URL = "https://vplink.in/api"
-# Bot username for deep links
-BOT_USERNAME = "Test_videos69_bot"
+# Bot username for deep links (from .env)
+BOT_USERNAME = os.getenv('BOT_USERNAME', 'Test_videos69_bot')
 # Secret key for encrypting verification tokens
 SECRET_KEY = "your_secret_key_here_change_this"  # Change this to a random secret
+
+# Message ID range configuration (from .env)
+MIN_MESSAGE_ID = 1
+MAX_MESSAGE_ID = int(os.getenv('MAX_MESSAGE_ID', '10'))  # Maximum message ID in your channel
 
 # Mandatory channel to join (forced subscription)
 # For private channels, you need to use the numeric chat ID (get it from @userinfobot)
@@ -250,9 +254,8 @@ def get_random_video(user_id):
     
     user_state = user_states[user_id]
     
-    # Configuration: message ID range in your channel
-    MIN_MESSAGE_ID = 1
-    MAX_MESSAGE_ID = 10  # Adjust based on your channel size
+    # Use global configuration from .env file
+    # MIN_MESSAGE_ID and MAX_MESSAGE_ID are defined at the top of the file
     
     # Generate a list of all possible message IDs
     all_message_ids = list(range(MIN_MESSAGE_ID, MAX_MESSAGE_ID + 1))
